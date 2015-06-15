@@ -1,9 +1,13 @@
-# from subscriptions.models import (ModelName)
-# from rest_framework import serializers
+from .models import Subscription
+from rest_framework import serializers
 
 
-# class ModelNameSerializer(serializers.HyperlinkedModelSerializer):
+class SubscriptionSerializer(serializers.HyperlinkedModelSerializer):
+    metadata = serializers.DictField(child=serializers.CharField())
 
-#     class Meta:
-#         model = ModelName
-#         fields = ('url', 'id', 'title')
+    class Meta:
+        model = Subscription
+        fields = (
+            'url', 'id', 'version', 'contact', 'messageset_id',
+            'next_sequence_number', 'lang', 'active', 'completed', 'schedule',
+            'process_status', 'metadata', 'created_at', 'updated_at')
