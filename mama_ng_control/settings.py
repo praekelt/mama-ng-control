@@ -35,6 +35,7 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.postgres',
     # 3rd Party
     'djcelery',
     'raven.contrib.django.raven_compat',
@@ -43,6 +44,7 @@ INSTALLED_APPS = (
     'django_filters',
     'django_hstore',
     # apps
+    'mama_ng_control.apps.contacts',
     'mama_ng_control.apps.subscriptions',
     'mama_ng_control.apps.web',
 )
