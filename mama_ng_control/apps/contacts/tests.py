@@ -7,7 +7,7 @@ from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
 
 
-from models import Contact
+from .models import Contact
 
 
 class APITestCase(TestCase):
@@ -67,6 +67,7 @@ class TestContactsAPI(AuthenticatedAPITestCase):
 
         d = Contact.objects.last()
         self.assertEqual(d.details["name"], "Test Name")
+        self.assertEqual(d.version, 1)
 
     def test_update_contact_data(self):
         existing = self.make_contact()
