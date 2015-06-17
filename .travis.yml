@@ -14,5 +14,5 @@ install:
 
 # command to run tests, e.g. python setup.py test
 script:
-  - "py.test py.test --ds=mama_ng_control.testsettings mama_ng_control/apps/*/tests.py --cov=contentstore"
+  - "py.test --ds=mama_ng_control.testsettings mama_ng_control/apps/*/tests.py --cov=contentstore"
   - "flake8 ."
