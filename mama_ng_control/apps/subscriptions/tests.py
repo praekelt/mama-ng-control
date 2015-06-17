@@ -85,6 +85,7 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Subscription.objects.last()
+        self.assertEqual(d.version, 1)
         self.assertEqual(d.messageset_id, 1)
         self.assertEqual(d.next_sequence_number, 1)
         self.assertEqual(d.lang, "en_ZA")
