@@ -8,6 +8,7 @@ urlpatterns = [
     url(r'^', include('mama_ng_control.apps.web.urls')),
     url(r'^api/v1/', include('mama_ng_control.apps.subscriptions.urls')),
     url(r'^api/v1/', include('mama_ng_control.apps.contacts.urls')),
+    url(r'^api/v1/messages/', include('mama_ng_control.apps.vumimessages.urls')),
     url(r'^api-auth/',
         include('rest_framework.urls', namespace='rest_framework')),
     url(r'^api-token-auth/',
