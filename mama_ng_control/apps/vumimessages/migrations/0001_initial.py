@@ -34,10 +34,10 @@ class Migration(migrations.Migration):
             fields=[
                 ('id', models.UUIDField(default=uuid.uuid4, serialize=False, editable=False, primary_key=True)),
                 ('version', models.IntegerField(default=1)),
-                ('content', models.CharField(max_length=1000)),
-                ('vumi_message_id', models.CharField(max_length=36)),
+                ('content', models.CharField(max_length=1000, null=True, blank=True)),
+                ('vumi_message_id', models.CharField(max_length=36, null=True, blank=True)),
                 ('delivered', models.BooleanField(default=False)),
-                ('attempts', models.IntegerField(default=1)),
+                ('attempts', models.IntegerField(default=0)),
                 ('metadata', django.contrib.postgres.fields.hstore.HStoreField()),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
