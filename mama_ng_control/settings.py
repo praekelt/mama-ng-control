@@ -47,6 +47,7 @@ INSTALLED_APPS = (
     'mama_ng_control.apps.contacts',
     'mama_ng_control.apps.subscriptions',
     'mama_ng_control.apps.web',
+    'mama_ng_control.apps.vumimessages',
 )
 
 MIDDLEWARE_CLASSES = (
