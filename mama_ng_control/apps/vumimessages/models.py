@@ -16,10 +16,10 @@ class Outbound(models.Model):
                                 related_name='messages',
                                 null=False)
     version = models.IntegerField(default=1)
-    content = models.CharField(null=False, blank=False, max_length=1000)
-    vumi_message_id = models.CharField(null=False, blank=False, max_length=36)
+    content = models.CharField(null=True, blank=True, max_length=1000)
+    vumi_message_id = models.CharField(null=True, blank=True, max_length=36)
     delivered = models.BooleanField(default=False)
-    attempts = models.IntegerField(default=1)
+    attempts = models.IntegerField(default=0)
     metadata = HStoreField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
