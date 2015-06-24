@@ -8,12 +8,12 @@ class OutboundSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = Outbound
         fields = (
-            'url', 'id', 'version', 'contact', 'vumi_message_id',
+            'url', 'id', 'version', 'contact', 'vumi_message_id', 'content',
             'delivered', 'attempts', 'metadata', 'created_at', 'updated_at')
 
 
 class InboundSerializer(serializers.HyperlinkedModelSerializer):
-    metadata = serializers.DictField(child=serializers.CharField())
+    helper_metadata = serializers.DictField(child=serializers.CharField())
 
     class Meta:
         model = Inbound
