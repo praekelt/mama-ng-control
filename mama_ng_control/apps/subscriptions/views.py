@@ -25,13 +25,13 @@ class SubscriptionViewSet(viewsets.ModelViewSet):
 class SubscriptionSend(APIView):
 
     """
-    Triggers a send for the
+    Triggers a send for the next subscription message
     """
     permission_classes = (AllowAny,)
 
     def post(self, request, *args, **kwargs):
         """
-        Triggers celery tasks for user
+        Validates subscription data before creating Outbound message
         """
         # Look up subscriber
         subscription_id = kwargs["subscription_id"]
