@@ -47,8 +47,10 @@ class SubscriptionSend(APIView):
                 new_message = Outbound()
                 new_message.contact = subscription.contact
                 new_message.metadata = {}
-                new_message.metadata["scheduler_message_id"] = request.data["message-id"]
-                new_message.metadata["scheduler_schedule_id"] = request.data["schedule-id"]
+                new_message.metadata["scheduler_message_id"] = \
+                    request.data["message-id"]
+                new_message.metadata["scheduler_schedule_id"] = \
+                    request.data["schedule-id"]
                 new_message.save()
                 # Return
                 status = 201
