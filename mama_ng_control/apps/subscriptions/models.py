@@ -24,7 +24,7 @@ class Subscription(models.Model):
     completed = models.BooleanField(default=False)
     schedule = models.IntegerField(default=1)
     process_status = models.IntegerField(default=0, null=False, blank=False)
-    metadata = HStoreField()
+    metadata = HStoreField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

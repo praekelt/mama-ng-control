@@ -9,4 +9,6 @@ router.register(r'subscriptions', views.SubscriptionViewSet)
 # Additionally, we include login URLs for the browseable API.
 urlpatterns = [
     url(r'^', include(router.urls)),
+    url('^subscriptions/(?P<subscription_id>.+)/send$',
+        views.SubscriptionSend.as_view()),
 ]
