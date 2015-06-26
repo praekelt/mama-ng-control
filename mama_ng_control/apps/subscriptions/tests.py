@@ -1,4 +1,5 @@
 import json
+import uuid
 
 from django.test import TestCase
 from django.contrib.auth.models import User
@@ -9,6 +10,7 @@ from rest_framework.authtoken.models import Token
 
 from .models import Subscription
 from mama_ng_control.apps.contacts.models import Contact
+from mama_ng_control.apps.vumimessages.models import Outbound
 
 
 class APITestCase(TestCase):
@@ -122,3 +124,57 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
 
         d = Subscription.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
+
+    def test_trigger_subscription_send(self):
+        existing = self.make_subscription()
+        post_trigger = {
+            "send-counter": 2,
+            "message-id": "4",
+            "schedule-id": "3"
+        }
+        response = self.client.post('/api/v1/subscriptions/%s/send' % existing,
+                                    json.dumps(post_trigger),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        o = Outbound.objects.last()
+        self.assertIsNotNone(o.id)
+        self.assertEqual(o.version, 1)
+        self.assertEqual(str(o.contact.id), str(self.contact))
+        self.assertEqual(o.content, None)
+        self.assertEqual(o.delivered, False)
+        self.assertEqual(o.attempts, 0)
+        self.assertEqual(o.metadata["scheduler_message_id"], "4")
+        self.assertEqual(o.metadata["scheduler_schedule_id"], "3")
+
+        s = Subscription.objects.get(id=existing)
+        self.assertEqual(s.next_sequence_number, 2)
+
+    def test_trigger_subscription_send_missing_subscription(self):
+        post_trigger = {
+            "send-counter": 2,
+            "message-id": "4",
+            "schedule-id": "3"
+        }
+        missing = str(uuid.uuid4())
+        response = self.client.post('/api/v1/subscriptions/%s/send' % missing,
+                                    json.dumps(post_trigger),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["accepted"], False)
+        self.assertEqual(response.data["reason"],
+                         "Missing subscription in control")
+
+    def test_trigger_subscription_send_missing_keys(self):
+        existing = self.make_subscription()
+        post_trigger = {
+            "send-counter": 2,
+            "schedule-id": "3"
+        }
+        response = self.client.post('/api/v1/subscriptions/%s/send' % existing,
+                                    json.dumps(post_trigger),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["accepted"], False)
+        self.assertEqual(response.data["reason"],
+                         "Missing expected body keys")
