@@ -48,7 +48,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "content": "Simple outbound message",
             "delivered": "false",
             "attempts": 1,
-            "metadata": {}
+            "metadata": {
+                "scheduler_message_id": "message-id-1",
+                "scheduler_schedule_id": "schedule-id-1"
+            }
         }
         response = self.client.post('/api/v1/messages/outbound/',
                                     json.dumps(post_data),
@@ -146,7 +149,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(str(d.contact.id), str(self.contact))
         self.assertEqual(d.delivered, True)
         self.assertEqual(d.attempts, 2)
-        self.assertEqual(d.metadata, {})
+        self.assertEqual(d.metadata["scheduler_message_id"], "message-id-1")
+        self.assertEqual(d.metadata["scheduler_schedule_id"], "schedule-id-1")
 
     def test_delete_outbound_data(self):
         existing = self.make_outbound()
