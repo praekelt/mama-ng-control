@@ -3,6 +3,8 @@ import uuid
 
 from django.test import TestCase
 from django.contrib.auth.models import User
+from django.test.utils import override_settings
+
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
@@ -14,6 +16,9 @@ from mama_ng_control.apps.contacts.models import Contact
 
 class APITestCase(TestCase):
 
+    @override_settings(CELERY_EAGER_PROPAGATES_EXCEPTIONS=True,
+                       CELERY_ALWAYS_EAGER=True,
+                       BROKER_BACKEND='memory',)
     def setUp(self):
         self.client = APIClient()
 
@@ -215,3 +220,99 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
         d = Inbound.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
+
+    def test_event_ack(self):
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        ack = {
+            "message_type": "event",
+            "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
+            "event_type": "ack",
+            "user_message_id": d.vumi_message_id,
+            "helper_metadata": {},
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "sent_message_id": "external-id"
+        }
+        response = self.client.post('/api/v1/messages/events',
+                                    json.dumps(ack),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, True)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata["ack_timestamp"],
+                         "2015-10-28 16:19:37.485612")
+
+    def test_event_delivery_report(self):
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        dr = {
+            "message_type": "event",
+            "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
+            "event_type": "delivery_report",
+            "user_message_id": d.vumi_message_id,
+            "helper_metadata": {},
+            "timestamp": "2015-10-28 16:20:37.485612",
+            "sent_message_id": "external-id"
+        }
+        response = self.client.post('/api/v1/messages/events',
+                                    json.dumps(dr),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, True)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata["delivery_timestamp"],
+                         "2015-10-28 16:20:37.485612")
+
+    def test_event_nack_first(self):
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        nack = {
+            "message_type": "event",
+            "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
+            "event_type": "nack",
+            "nack_reason": "no answer",
+            "user_message_id": d.vumi_message_id,
+            "helper_metadata": {},
+            "timestamp": "2015-10-28 16:20:37.485612",
+            "sent_message_id": "external-id"
+        }
+        response = self.client.post('/api/v1/messages/events',
+                                    json.dumps(nack),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata["nack_reason"],
+                         "no answer")
+
+    def test_event_nack_last(self):
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        d.attempts = 3  # fast forward as if last attempt
+        d.save()
+        nack = {
+            "message_type": "event",
+            "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
+            "event_type": "nack",
+            "nack_reason": "no answer",
+            "user_message_id": d.vumi_message_id,
+            "helper_metadata": {},
+            "timestamp": "2015-10-28 16:20:37.485612",
+            "sent_message_id": "external-id"
+        }
+        response = self.client.post('/api/v1/messages/events',
+                                    json.dumps(nack),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 3)  # not moved on as last attempt passed
+        self.assertEqual(d.metadata["nack_reason"],
+                         "no answer")
