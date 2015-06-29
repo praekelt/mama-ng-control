@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from django.core.exceptions import ObjectDoesNotExist
 from .models import Outbound, Inbound
 from .serializers import OutboundSerializer, InboundSerializer
-from .tasks import send_message
+from .tasks import send_message, scheduler_ack
 
 
 class OutboundViewSet(viewsets.ModelViewSet):
@@ -60,6 +60,8 @@ class EventListener(APIView):
                         message.delivered = True
                         message.metadata["ack_timestamp"] = \
                             request.data["timestamp"]
+                        scheduler_ack.delay(
+                            message.metadata["scheduler_message_id"])
                     elif event == "delivery_report":
                         message.delivered = True
                         message.metadata["delivery_timestamp"] = \

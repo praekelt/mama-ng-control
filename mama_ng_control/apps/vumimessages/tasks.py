@@ -12,3 +12,10 @@ def send_message(message_id):
 
     # update status
     pass
+
+
+@task()
+def scheduler_ack(message_id):
+    # send ack to scheduler
+
+    pass
