@@ -9,5 +9,7 @@ router.register(r'inbound', views.InboundViewSet)
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browseable API.
 urlpatterns = [
+    url('^events$',
+        views.EventListener.as_view()),
     url(r'^', include(router.urls)),
 ]

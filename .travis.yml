@@ -6,6 +6,7 @@ python:
 
 services:
   - postgresql
+  - redis
 
 # command to install requirements
 install:
