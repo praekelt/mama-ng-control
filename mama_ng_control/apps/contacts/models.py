@@ -4,6 +4,13 @@ from django.contrib.postgres.fields import HStoreField
 from django.db import models
 
 
+class ContactManager(models.Manager):
+
+    def filter_by_addr(self, addr):
+        # expects "addr_type:add" e.g. "msisdn:+123"
+        return self.filter(details__addresses__contains=addr)
+
+
 class Contact(models.Model):
 
     """
@@ -17,6 +24,8 @@ class Contact(models.Model):
     details = HStoreField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ContactManager()
 
     def __str__(self):  # __unicode__ on Python 2
         return str(self.id)
