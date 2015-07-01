@@ -168,4 +168,24 @@ STATIC_URL = '/static/'
 #     os.path.join(BASE_DIR, 'static'),
 # )
 STATIC_ROOT = 'staticfiles'
-# print(STATICFILES_DIRS)
+
+VUMI_API_URL = \
+    os.environ.get('MAMA_NG_CONTROL_VUMI_API_URL',
+                   'http://example.com/api/v1/go/http_api_nostream')
+VUMI_ACCOUNT_KEY = \
+    os.environ.get('MAMA_NG_CONTROL_VUMI_ACCOUNT_KEY', 'acc-key')
+VUMI_CONVERSATION_KEY = \
+    os.environ.get('MAMA_NG_CONTROL_VUMI_CONVERSATION_KEY', 'conv-key')
+VUMI_ACCOUNT_TOKEN = \
+    os.environ.get('MAMA_NG_CONTROL_VUMI_ACCOUNT_TOKEN', 'conv-token')
+
+CONTENTSTORE_AUTH_TOKEN = \
+    os.environ.get('MAMA_NG_CONTROL_CONTENTSTORE_AUTH_TOKEN', 'auth-token')
+CONTENTSTORE_API_URL = \
+    os.environ.get('MAMA_NG_CONTROL_CONTENTSTORE_API_URL',
+                   'http://example.com/contentstore/')
+
+MAMA_NG_CONTROL_MAX_RETRIES = \
+    os.environ.get('MAMA_NG_CONTROL_MAX_RETRIES', 3)
+MAMA_NG_CONTROL_MAX_FAILURES = \
+    os.environ.get('MAMA_NG_CONTROL_MAX_FAILURES', 5)
