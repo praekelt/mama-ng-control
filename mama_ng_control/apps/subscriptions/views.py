@@ -6,8 +6,7 @@ from django.core.exceptions import ObjectDoesNotExist
 
 from .models import Subscription
 from .serializers import SubscriptionSerializer
-
-from mama_ng_control.apps.vumimessages.models import Outbound
+from .tasks import create_message
 
 
 class SubscriptionViewSet(viewsets.ModelViewSet):
@@ -42,16 +41,19 @@ class SubscriptionSend(APIView):
                 # Set the next sequence number
                 subscription.next_sequence_number = request.data[
                     "send-counter"]
-                subscription.save()
-                # Create the message which will trigger send task
-                new_message = Outbound()
-                new_message.contact = subscription.contact
-                new_message.metadata = {}
-                new_message.metadata["scheduler_message_id"] = \
-                    request.data["message-id"]
-                new_message.metadata["scheduler_schedule_id"] = \
+                # Keep the subscription up-to-date for acks later
+                subscription.metadata["scheduler_schedule_id"] = \
                     request.data["schedule-id"]
-                new_message.save()
+                subscription.metadata["scheduler_message_id"] = \
+                    request.data["message-id"]
+                subscription.save()
+                # Create and populate the message which will trigger send task
+                create_message.delay(
+                    str(subscription.contact.id),
+                    subscription.messageset_id,
+                    subscription.next_sequence_number,
+                    subscription.lang,
+                    str(subscription.id))
                 # Return
                 status = 201
                 accepted = {"accepted": True}

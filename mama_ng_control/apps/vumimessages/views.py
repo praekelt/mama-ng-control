@@ -3,6 +3,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.core.exceptions import ObjectDoesNotExist
+from django.conf import settings
 from .models import Outbound, Inbound
 from .serializers import OutboundSerializer, InboundSerializer
 from .tasks import send_message, scheduler_ack
@@ -61,7 +62,7 @@ class EventListener(APIView):
                         message.metadata["ack_timestamp"] = \
                             request.data["timestamp"]
                         scheduler_ack.delay(
-                            message.metadata["scheduler_message_id"])
+                            message.metadata["subscription"])
                     elif event == "delivery_report":
                         message.delivered = True
                         message.metadata["delivery_timestamp"] = \
