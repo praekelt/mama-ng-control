@@ -4,6 +4,7 @@ import logging
 
 from django.test import TestCase
 from django.contrib.auth.models import User
+from django.db.models.signals import post_save
 
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -11,7 +12,7 @@ from rest_framework.authtoken.models import Token
 
 from go_http.send import LoggingSender
 
-from .models import Inbound, Outbound
+from .models import Inbound, Outbound, fire_send_if_new
 from .tasks import Send_Message, Send_Metric
 from mama_ng_control.apps.contacts.models import Contact
 
@@ -72,6 +73,26 @@ class AuthenticatedAPITestCase(APITestCase):
                 return True
         return False
 
+    def _replace_post_save_hooks(self):
+        has_listeners = lambda: post_save.has_listeners(Outbound)
+        assert has_listeners(), (
+            "Outbound model has no post_save listeners. Make sure"
+            " helpers cleaned up properly in earlier tests.")
+        post_save.disconnect(fire_send_if_new,
+                             sender=Outbound)
+        assert not has_listeners(), (
+            "Outbound model still has post_save listeners. Make sure"
+            " helpers cleaned up properly in earlier tests.")
+
+    def _restore_post_save_hooks(self):
+        has_listeners = lambda: post_save.has_listeners(Outbound)
+        assert not has_listeners(), (
+            "Outbound model still has post_save listeners. Make sure"
+            " helpers removed them properly in earlier tests.")
+        post_save.connect(
+            fire_send_if_new,
+            sender=Outbound)
+
 
 class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
@@ -95,6 +116,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         return response.data["id"]
 
     def make_outbound(self):
+        self._replace_post_save_hooks()  # don't let fixtures fire tasks
         subscription = self.make_subscription()
         post_data = {
             "contact": "/api/v1/contacts/%s/" % self.contact,
@@ -109,6 +131,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         response = self.client.post('/api/v1/messages/outbound/',
                                     json.dumps(post_data),
                                     content_type='application/json')
+        self._restore_post_save_hooks()  # let tests fire tasks
         return response.data["id"]
 
     def make_inbound(self, in_reply_to):
@@ -145,7 +168,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
             "content": "Say something",
             "delivered": "false",
-            "attempts": 1,
+            "attempts": 0,
             "metadata": {}
         }
         response = self.client.post('/api/v1/messages/outbound/',
@@ -180,7 +203,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.version, 1)
         self.assertEqual(str(d.contact.id), str(self.contact))
         self.assertEqual(d.delivered, False)
-        self.assertEqual(d.attempts, 0)
+        self.assertEqual(d.attempts, 1)
         self.assertEqual(d.metadata, {
             "voice_speech_url": "https://foo.com/file.mp3"
         })
@@ -344,10 +367,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
                                     content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        d = Outbound.objects.get(pk=existing)
-        self.assertEqual(d.delivered, False)
-        self.assertEqual(d.attempts, 1)
-        self.assertEqual(d.metadata["nack_reason"],
+        c = Outbound.objects.get(pk=existing)
+        self.assertEqual(c.delivered, False)
+        self.assertEqual(c.attempts, 2)
+        self.assertEqual(c.metadata["nack_reason"],
                          "no answer")
         self.assertEquals(True, self.check_logs(
             "Message: u'Simple outbound message' sent to [u'+27123']"))

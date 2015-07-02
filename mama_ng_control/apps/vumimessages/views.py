@@ -62,16 +62,18 @@ class EventListener(APIView):
                             request.data["timestamp"]
                         scheduler_ack.delay(
                             message.metadata["subscription"])
+                        message.save()
                     elif event == "delivery_report":
                         message.delivered = True
                         message.metadata["delivery_timestamp"] = \
                             request.data["timestamp"]
+                        message.save()
                     elif event == "nack":
                         if "nack_reason" in request.data:
                             message.metadata["nack_reason"] = \
                                 request.data["nack_reason"]
+                            message.save()
                         send_message.delay(str(message.id))
-                    message.save()
                     # Return
                     status = 200
                     accepted = {"accepted": True}

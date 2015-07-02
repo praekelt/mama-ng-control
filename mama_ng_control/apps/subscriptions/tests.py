@@ -228,7 +228,7 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
         self.assertEqual(str(o.contact.id), str(self.contact))
         self.assertEqual(o.content, "Message one")
         self.assertEqual(o.delivered, False)
-        self.assertEqual(o.attempts, 0)
+        self.assertEqual(o.attempts, 1)
         self.assertEqual(o.metadata["subscription"], existing)
         s = Subscription.objects.last()
         self.assertEqual(s.metadata["scheduler_message_id"], "4")
