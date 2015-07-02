@@ -5,6 +5,7 @@ from django.db import models
 
 from mama_ng_control.apps.contacts.models import Contact
 
+
 class Outbound(models.Model):
 
     """
@@ -54,7 +55,7 @@ from django.dispatch import receiver
 from .tasks import send_message
 
 
-# @receiver(post_save, sender=Outbound)
-# def fire_send_if_new(sender, instance, created, **kwargs):
-#     if created:
-#         send_message.delay(str(instance.id))
+@receiver(post_save, sender=Outbound)
+def fire_send_if_new(sender, instance, created, **kwargs):
+    if created:
+        send_message.delay(str(instance.id))

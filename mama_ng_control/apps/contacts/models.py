@@ -16,7 +16,8 @@ class Contact(models.Model):
     """
     version: 1
     details should contain at minimum:
-    addresses: addr_type:addr_value pairs (e.g. "msisdn:+27001 msisdn:+27002 email:foo@bar.com")
+    addresses: addr_type:addr_value pairs
+        (e.g. "msisdn:+27001 msisdn:+27002 email:foo@bar.com")
     default_addr_type: which addr_type in addresses to default to if non-given
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
