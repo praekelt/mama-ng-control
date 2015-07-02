@@ -45,6 +45,6 @@ class Contact(models.Model):
             addresses = self.details["addresses"].split()
             for address in addresses:
                 parts = address.split(":")
-                if parts[0] == unicode(addr_type):
+                if parts[0] == str(addr_type):
                     found.append(parts[1])
         return found
