@@ -30,3 +30,14 @@ class Subscription(models.Model):
 
     def __str__(self):  # __unicode__ on Python 2
         return str(self.id)
+
+# Make sure new subscriptions are created on scheduler
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from .tasks import schedule_create
+
+
+@receiver(post_save, sender=Subscription)
+def fire_sub_action_if_new(sender, instance, created, **kwargs):
+    if created:
+        schedule_create.delay(str(instance.id))

@@ -1,20 +1,22 @@
 import json
 import uuid
 import logging
+import responses
 
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.conf import settings
+from django.db.models.signals import post_save
 
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
 
 
-from .models import Subscription
+from .models import Subscription, fire_sub_action_if_new
 from mama_ng_control.apps.contacts.models import Contact
 from mama_ng_control.apps.vumimessages.models import Outbound
-from .tasks import Create_Message
+from .tasks import Create_Message, schedule_create
 
 # override Vumi sending handlers
 from go_http.send import LoggingSender
@@ -137,6 +139,23 @@ class APITestCase(TestCase):
                 return True
         return False
 
+    def _replace_post_save_hooks(self):
+        has_listeners = lambda: post_save.has_listeners(Subscription)
+        assert has_listeners(), (
+            "Subscription model has no post_save listeners. Make sure"
+            " helpers cleaned up properly in earlier tests.")
+        post_save.disconnect(fire_sub_action_if_new, sender=Subscription)
+        assert not has_listeners(), (
+            "Subscription model still has post_save listeners. Make sure"
+            " helpers cleaned up properly in earlier tests.")
+
+    def _restore_post_save_hooks(self):
+        has_listeners = lambda: post_save.has_listeners(Subscription)
+        assert not has_listeners(), (
+            "Subscription model still has post_save listeners. Make sure"
+            " helpers removed them properly in earlier tests.")
+        post_save.connect(fire_sub_action_if_new, sender=Subscription)
+
 
 class AuthenticatedAPITestCase(APITestCase):
 
@@ -161,6 +180,14 @@ class AuthenticatedAPITestCase(APITestCase):
 
 class TestSubscriptionsAPI(AuthenticatedAPITestCase):
 
+    def setUp(self):
+        super(TestSubscriptionsAPI, self).setUp()
+        self._replace_post_save_hooks()  # don't let fixtures fire tasks
+
+    def tearDown(self):
+        super(TestSubscriptionsAPI, self).tearDown()
+        self._restore_post_save_hooks()  # restore hooks
+
     def make_subscription(self):
         post_data = {
             "contact": "/api/v1/contacts/%s/" % self.contact,
@@ -172,7 +199,8 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
             "schedule": "1",
             "process_status": "0",
             "metadata": {
-                "source": "RapidProVoice"
+                "source": "RapidProVoice",
+                "frequency": 10
             }
         }
         response = self.client.post('/api/v1/subscriptions/',
@@ -191,7 +219,26 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
                          "Status code on /auth/token/ was %s (should be 200)."
                          % request.status_code)
 
+    @responses.activate
     def test_create_subscription_data(self):
+        schedule = {
+            "class": "mama.ng.scheduler.Schedule",
+            "id": "1",
+            "cronDefinition": "1 2 3 4 5",
+            "dateCreated": "2015-04-05T21:59:28Z",
+            "endpoint": "http://examplecontrol.com/api/v1",
+            "frequency": 10,
+            "messages": None,
+            "nextSend": "2015-04-05T22:00:00Z",
+            "sendCounter": 0,
+            "subscriptionId": "1234"
+        }
+
+        responses.add(responses.GET,
+                      "http://127.0.0.1:8000/mama-ng-scheduler/rest/schedules",
+                      json.dumps(schedule),
+                      status=200, content_type='application/json')
+
         post_subscription = {
             "contact": "/api/v1/contacts/%s/" % self.contact,
             "messageset_id": "1",
@@ -202,7 +249,8 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
             "schedule": "1",
             "process_status": "0",
             "metadata": {
-                "source": "RapidProVoice"
+                "source": "RapidProVoice",
+                "frequency": 10
             }
         }
         response = self.client.post('/api/v1/subscriptions/',
@@ -304,3 +352,47 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.data["accepted"], False)
         self.assertEqual(response.data["reason"],
                          "Missing expected body keys")
+
+    @responses.activate
+    def test_create_schedule_data(self):
+        # create existing but surpress post save hook
+        existing = self.make_subscription()
+        # from the content store
+        schedule_get = {
+            "id": 1,
+            "minute": "1",
+            "hour": "6",
+            "day_of_week": "1",
+            "day_of_month": "*",
+            "month_of_year": "*"
+        }
+
+        responses.add(responses.GET,
+                      "http://127.0.0.1:8000/contentstore/schedule/1",
+                      json.dumps(schedule_get),
+                      status=200, content_type='application/json')
+
+        # to the scheduler
+        schedule_post = {
+            "class": "mama.ng.scheduler.Schedule",
+            "id": "11",
+            "cronDefinition": "1 6 1 * *",
+            "dateCreated": "2015-04-05T21:59:28Z",
+            "endpoint": "http://examplecontrol.com/api/v1/%s/send" % existing,
+            "frequency": 10,
+            "messages": None,
+            "nextSend": "2015-04-05T22:00:00Z",
+            "sendCounter": 0,
+            "subscriptionId": existing
+        }
+        responses.add(responses.POST,
+                      "http://127.0.0.1:8000/mama-ng-scheduler/rest/schedules",
+                      json.dumps(schedule_post),
+                      status=200, content_type='application/json')
+
+        result = schedule_create.delay(existing)
+        self.assertEqual(int(result.get()), 11)
+
+        d = Subscription.objects.get(pk=existing)
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.metadata["scheduler_schedule_id"], "11")
