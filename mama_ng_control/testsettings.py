@@ -26,6 +26,10 @@ VUMI_ACCOUNT_TOKEN = 'conv-token'
 CONTENTSTORE_AUTH_TOKEN = 'auth_token'
 CONTENTSTORE_API_URL = 'http://127.0.0.1:8000/contentstore'
 
+SCHEDULER_URL = 'http://127.0.0.1:8000/mama-ng-scheduler/rest/'
+SCHEDULER_USERNAME = 'sc-username'
+SCHEDULER_PASSWORD = 'sc-password'
+
 CELERY_EAGER_PROPAGATES_EXCEPTIONS = True
 CELERY_ALWAYS_EAGER = True
 BROKER_BACKEND = 'memory'
