@@ -136,14 +136,15 @@ class Send_Message(Task):
                 if "speech_url" in message.metadata:
                     content = message.metadata["voice_speech_url"]
                 to_addr = message.contact.address("msisdn")
-                if to_addr is None:
+                if len(to_addr) == 0:
+                    print to_addr
                     l.info("Failed to send message <%s>. No address." % (
                         message_id,))
                     scheduler_ack.delay(
-                        message.metadata["scheduler_message_id"])
+                        message.metadata["subscription"])
                 else:
                     vumiresponse = sender.send_text(
-                        to_addr, content)
+                        to_addr[0], content)
                     l.info("Sent message to <%s>" % to_addr)
                     message.attempts += 1
                     message.vumi_message_id = vumiresponse["message_id"]

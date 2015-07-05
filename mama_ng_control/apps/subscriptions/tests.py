@@ -150,7 +150,12 @@ class AuthenticatedAPITestCase(APITestCase):
         token = Token.objects.create(user=self.user)
         self.token = token.key
         self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token)
-        contact = Contact.objects.create(details={"to_addr": "+27123"})
+        details = {
+            "name": "Foo Bar",
+            "default_addr_type": "msisdn",
+            "addresses": "msisdn:+27123 email:foo@bar.com"
+        }
+        contact = Contact.objects.create(details=details)
         self.contact = contact.id
 
 

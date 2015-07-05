@@ -132,6 +132,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
                                     json.dumps(post_data),
                                     content_type='application/json')
         self._restore_post_save_hooks()  # let tests fire tasks
+        self.check_logs(
+            "Message: u'Simple outbound message' sent to u'+27123'")
         return response.data["id"]
 
     def make_inbound(self, in_reply_to):
@@ -322,7 +324,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["ack_timestamp"],
                          "2015-10-28 16:19:37.485612")
         self.assertEquals(False, self.check_logs(
-            "Message: u'Simple outbound message' sent to [u'+27123']"))
+            "Message: u'Simple outbound message' sent to u'+27123'"))
 
     def test_event_delivery_report(self):
         existing = self.make_outbound()
@@ -347,7 +349,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["delivery_timestamp"],
                          "2015-10-28 16:20:37.485612")
         self.assertEquals(False, self.check_logs(
-            "Message: u'Simple outbound message' sent to [u'+27123']"))
+            "Message: u'Simple outbound message' sent to u'+27123'"))
 
     def test_event_nack_first(self):
         existing = self.make_outbound()
@@ -373,7 +375,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(c.metadata["nack_reason"],
                          "no answer")
         self.assertEquals(True, self.check_logs(
-            "Message: u'Simple outbound message' sent to [u'+27123']"))
+            "Message: u'Simple outbound message' sent to u'+27123'"))
         self.assertEquals(
             True,
             self.check_logs("Metric: 'vumimessage.tries' [sum] -> 1"))
@@ -404,7 +406,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["nack_reason"],
                          "no answer")
         self.assertEquals(False, self.check_logs(
-            "Message: u'Simple outbound message' sent to [u'+27123']"))
+            "Message: u'Simple outbound message' sent to u'+27123'"))
         self.assertEquals(
             False,
             self.check_logs("Metric: 'vumimessage.tries' [sum] -> 1"))
