@@ -92,3 +92,76 @@ class TestContactsAPI(AuthenticatedAPITestCase):
 
         d = Contact.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
+
+    def test_create_contact_data_v1_format_address_getting(self):
+        """
+        v1 expects at minimum:
+        addresses: addr_type:addr_value pairs
+            (e.g. "msisdn:+27001 msisdn:+27002 email:foo@bar.com")
+        default_addr_type: which addr_type to default to if not given
+        which is used with address function for smart lookups
+        """
+        post_contact = {
+            "details": {
+                "name": "Test Name",
+                "default_addr_type": "msisdn",
+                "addresses": "msisdn:+27123 email:foo@bar.com"
+            }
+        }
+        response = self.client.post('/api/v1/contacts/',
+                                    json.dumps(post_contact),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Contact.objects.last()
+        self.assertEqual(d.details["name"], "Test Name")
+        self.assertEqual(d.version, 1)
+        self.assertEqual(d.address(), ["+27123"])
+        self.assertEqual(d.address("email"), ["foo@bar.com"])
+
+    def test_create_contact_data_v1_format_no_default_address_getting(self):
+        """
+        v1 expects at minimum:
+        addresses: addr_type:addr_value pairs
+            (e.g. "msisdn:+27001 msisdn:+27002 email:foo@bar.com")
+        default_addr_type: which addr_type to default to if not given
+        which is used with address function for smart lookups
+        """
+        post_contact = {
+            "details": {
+                "name": "Test Name",
+                "addresses": "msisdn:+27123"
+            }
+        }
+        response = self.client.post('/api/v1/contacts/',
+                                    json.dumps(post_contact),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Contact.objects.last()
+        self.assertEqual(d.details["name"], "Test Name")
+        self.assertEqual(d.version, 1)
+        self.assertEqual(d.address(), ["+27123"])
+
+    def test_create_contact_data_v1_format_no_address_getting(self):
+        """
+        v1 expects at minimum:
+        addresses: addr_type:addr_value pairs
+            (e.g. "msisdn:+27001 msisdn:+27002 email:foo@bar.com")
+        default_addr_type: which addr_type to default to if not given
+        which is used with address function for smart lookups
+        """
+        post_contact = {
+            "details": {
+                "name": "Test Name",
+            }
+        }
+        response = self.client.post('/api/v1/contacts/',
+                                    json.dumps(post_contact),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Contact.objects.last()
+        self.assertEqual(d.details["name"], "Test Name")
+        self.assertEqual(d.version, 1)
+        self.assertEqual(d.address(), [])
