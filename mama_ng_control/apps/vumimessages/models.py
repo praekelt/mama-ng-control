@@ -9,8 +9,8 @@ from mama_ng_control.apps.contacts.models import Contact
 class Outbound(models.Model):
 
     """
-    Contacts outbound messages and their status
-    delivered is set to true when ack received because delivery reports patchy
+    Contacts outbound messages and their status.
+    Delivered is set to true when ack received because delivery reports patchy
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     contact = models.ForeignKey(Contact,
