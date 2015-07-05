@@ -1,8 +1,11 @@
 import json
 import uuid
+import logging
 
 from django.test import TestCase
 from django.contrib.auth.models import User
+from django.conf import settings
+
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
@@ -11,12 +14,128 @@ from rest_framework.authtoken.models import Token
 from .models import Subscription
 from mama_ng_control.apps.contacts.models import Contact
 from mama_ng_control.apps.vumimessages.models import Outbound
+from .tasks import Create_Message
+
+# override Vumi sending handlers
+from go_http.send import LoggingSender
+from mama_ng_control.apps.vumimessages.tasks import Send_Message, Send_Metric
+Send_Metric.vumi_client = lambda x: LoggingSender('go_http.test')
+Send_Message.vumi_client = lambda x: LoggingSender('go_http.test')
+
+# from requests import HTTPError
+from requests.adapters import HTTPAdapter
+from requests_testadapter import TestSession, Resp
+from verified_fake.fake_contentstore import Request, FakeContentStoreApi
+
+from client.messaging_contentstore.contentstore import ContentStoreApiClient
+
+
+class RecordingHandler(logging.Handler):
+
+    """ Record logs. """
+    logs = None
+
+    def emit(self, record):
+        if self.logs is None:
+            self.logs = []
+        self.logs.append(record)
+
+
+class FakeContentStoreApiAdapter(HTTPAdapter):
+
+    """
+    Adapter for FakeContentStoreApi
+
+    This inherits directly from HTTPAdapter instead of using TestAdapter
+    because it overrides everything TestAdaptor does.
+    """
+
+    def __init__(self, contentstore_api):
+        self.contentstore_api = contentstore_api
+        super(FakeContentStoreApiAdapter, self).__init__()
+
+    def send(self, request, stream=False, timeout=None,
+             verify=True, cert=None, proxies=None):
+        req = Request(
+            request.method, request.path_url, request.body, request.headers)
+        resp = self.contentstore_api.handle_request(req)
+        response = Resp(resp.body, resp.code, resp.headers)
+        r = self.build_response(request, response)
+        return r
+
+
+make_messageset_dict = FakeContentStoreApi.make_messageset_dict
+make_message_dict = FakeContentStoreApi.make_message_dict
+make_schedule_dict = FakeContentStoreApi.make_schedule_dict
 
 
 class APITestCase(TestCase):
 
+    def make_cs_client(self):
+        return ContentStoreApiClient(
+            settings.CONTENTSTORE_AUTH_TOKEN,
+            api_url=settings.CONTENTSTORE_API_URL,
+            session=self.session)
+
+    def make_fixtures(self):
+        schedule = make_schedule_dict({
+            "minute": "1",
+            "hour": "2",
+            "day_of_week": "3",
+            "day_of_month": "4",
+            "month_of_year": "5",
+        })
+        self.schedule_data[schedule[u"id"]] = schedule
+        messageset = make_messageset_dict({
+            u"short_name": u"Full Set",
+            u"notes": u"A full set of messages.",
+            u"default_schedule": schedule['id']
+        })
+        self.messageset_data[messageset[u"id"]] = messageset
+        self.message1 = make_message_dict({
+            "messageset": messageset['id'],
+            "sequence_number": 1,
+            "lang": "en_ZA",
+            "text_content": "Message one",
+            "binary_content": {
+                "content": "http://foo.com/message1.mp3"
+            }
+        })
+        self.message_data[self.message1[u'id']] = self.message1
+
     def setUp(self):
         self.client = APIClient()
+        self.messageset_data = {}
+        self.schedule_data = {}
+        self.message_data = {}
+        self.binary_content_data = {}
+        self.make_fixtures()
+        self.contentstore_backend = FakeContentStoreApi(
+            "contentstore/", settings.CONTENTSTORE_AUTH_TOKEN,
+            messageset_data=self.messageset_data,
+            schedule_data=self.schedule_data, message_data=self.message_data,
+            binary_content_data=self.binary_content_data)
+        self.session = TestSession()
+        adapter = FakeContentStoreApiAdapter(self.contentstore_backend)
+        self.session.mount(settings.CONTENTSTORE_API_URL, adapter)
+        # self.contentstore = self.make_cs_client()
+        Create_Message.contentstore_client = lambda x: self.make_cs_client()
+        self.handler = RecordingHandler()
+        logger = logging.getLogger('go_http.test')
+        logger.setLevel(logging.INFO)
+        logger.addHandler(self.handler)
+
+    def check_logs(self, msg):
+        if self.handler.logs is None:  # nothing to check
+            return False
+        if type(self.handler.logs) != list:
+            [logs] = self.handler.logs
+        else:
+            logs = self.handler.logs
+        for log in logs:
+            if log.msg == msg:
+                return True
+        return False
 
 
 class AuthenticatedAPITestCase(APITestCase):
@@ -31,7 +150,12 @@ class AuthenticatedAPITestCase(APITestCase):
         token = Token.objects.create(user=self.user)
         self.token = token.key
         self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token)
-        contact = Contact.objects.create(details={"to_addr": "+27123"})
+        details = {
+            "name": "Foo Bar",
+            "default_addr_type": "msisdn",
+            "addresses": "msisdn:+27123 email:foo@bar.com"
+        }
+        contact = Contact.objects.create(details=details)
         self.contact = contact.id
 
 
@@ -40,7 +164,7 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
     def make_subscription(self):
         post_data = {
             "contact": "/api/v1/contacts/%s/" % self.contact,
-            "messageset_id": "1",
+            "messageset_id": "2",
             "next_sequence_number": "1",
             "lang": "en_ZA",
             "active": "true",
@@ -141,11 +265,13 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
         self.assertIsNotNone(o.id)
         self.assertEqual(o.version, 1)
         self.assertEqual(str(o.contact.id), str(self.contact))
-        self.assertEqual(o.content, None)
+        self.assertEqual(o.content, "Message one")
         self.assertEqual(o.delivered, False)
-        self.assertEqual(o.attempts, 0)
-        self.assertEqual(o.metadata["scheduler_message_id"], "4")
-        self.assertEqual(o.metadata["scheduler_schedule_id"], "3")
+        self.assertEqual(o.attempts, 1)
+        self.assertEqual(o.metadata["subscription"], existing)
+        s = Subscription.objects.last()
+        self.assertEqual(s.metadata["scheduler_message_id"], "4")
+        self.assertEqual(s.metadata["scheduler_schedule_id"], "3")
 
         s = Subscription.objects.get(id=existing)
         self.assertEqual(s.next_sequence_number, 2)

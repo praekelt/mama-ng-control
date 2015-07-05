@@ -1,24 +1,38 @@
 import json
 import uuid
+import logging
 
 from django.test import TestCase
 from django.contrib.auth.models import User
-from django.test.utils import override_settings
+from django.db.models.signals import post_save
 
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
 
+from go_http.send import LoggingSender
 
-from .models import Inbound, Outbound
+from .models import Inbound, Outbound, fire_send_if_new
+from .tasks import Send_Message, Send_Metric
 from mama_ng_control.apps.contacts.models import Contact
+
+Send_Metric.vumi_client = lambda x: LoggingSender('go_http.test')
+Send_Message.vumi_client = lambda x: LoggingSender('go_http.test')
+
+
+class RecordingHandler(logging.Handler):
+
+    """ Record logs. """
+    logs = None
+
+    def emit(self, record):
+        if self.logs is None:
+            self.logs = []
+        self.logs.append(record)
 
 
 class APITestCase(TestCase):
 
-    @override_settings(CELERY_EAGER_PROPAGATES_EXCEPTIONS=True,
-                       CELERY_ALWAYS_EAGER=True,
-                       BROKER_BACKEND='memory',)
     def setUp(self):
         self.client = APIClient()
 
@@ -35,13 +49,75 @@ class AuthenticatedAPITestCase(APITestCase):
         token = Token.objects.create(user=self.user)
         self.token = token.key
         self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token)
-        contact = Contact.objects.create(details={"to_addr": "+27123"})
+        details = {
+            "name": "Foo Bar",
+            "default_addr_type": "msisdn",
+            "addresses": "msisdn:+27123 email:foo@bar.com"
+        }
+        contact = Contact.objects.create(details=details)
         self.contact = contact.id
+        self.handler = RecordingHandler()
+        logger = logging.getLogger('go_http.test')
+        logger.setLevel(logging.INFO)
+        logger.addHandler(self.handler)
+
+    def check_logs(self, msg):
+        if self.handler.logs is None:  # nothing to check
+            return False
+        if type(self.handler.logs) != list:
+            [logs] = self.handler.logs
+        else:
+            logs = self.handler.logs
+        for log in logs:
+            if log.msg == msg:
+                return True
+        return False
+
+    def _replace_post_save_hooks(self):
+        has_listeners = lambda: post_save.has_listeners(Outbound)
+        assert has_listeners(), (
+            "Outbound model has no post_save listeners. Make sure"
+            " helpers cleaned up properly in earlier tests.")
+        post_save.disconnect(fire_send_if_new,
+                             sender=Outbound)
+        assert not has_listeners(), (
+            "Outbound model still has post_save listeners. Make sure"
+            " helpers cleaned up properly in earlier tests.")
+
+    def _restore_post_save_hooks(self):
+        has_listeners = lambda: post_save.has_listeners(Outbound)
+        assert not has_listeners(), (
+            "Outbound model still has post_save listeners. Make sure"
+            " helpers removed them properly in earlier tests.")
+        post_save.connect(
+            fire_send_if_new,
+            sender=Outbound)
 
 
 class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
+    def make_subscription(self):
+        post_data = {
+            "contact": "/api/v1/contacts/%s/" % self.contact,
+            "messageset_id": "1",
+            "next_sequence_number": "1",
+            "lang": "en_ZA",
+            "active": "true",
+            "completed": "false",
+            "schedule": "1",
+            "process_status": "0",
+            "metadata": {
+                "source": "RapidProVoice"
+            }
+        }
+        response = self.client.post('/api/v1/subscriptions/',
+                                    json.dumps(post_data),
+                                    content_type='application/json')
+        return response.data["id"]
+
     def make_outbound(self):
+        self._replace_post_save_hooks()  # don't let fixtures fire tasks
+        subscription = self.make_subscription()
         post_data = {
             "contact": "/api/v1/contacts/%s/" % self.contact,
             "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
@@ -49,13 +125,15 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "delivered": "false",
             "attempts": 1,
             "metadata": {
-                "scheduler_message_id": "message-id-1",
-                "scheduler_schedule_id": "schedule-id-1"
+                "subscription": subscription
             }
         }
         response = self.client.post('/api/v1/messages/outbound/',
                                     json.dumps(post_data),
                                     content_type='application/json')
+        self._restore_post_save_hooks()  # let tests fire tasks
+        self.check_logs(
+            "Message: u'Simple outbound message' sent to u'+27123'")
         return response.data["id"]
 
     def make_inbound(self, in_reply_to):
@@ -92,7 +170,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
             "content": "Say something",
             "delivered": "false",
-            "attempts": 1,
+            "attempts": 0,
             "metadata": {}
         }
         response = self.client.post('/api/v1/messages/outbound/',
@@ -127,7 +205,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.version, 1)
         self.assertEqual(str(d.contact.id), str(self.contact))
         self.assertEqual(d.delivered, False)
-        self.assertEqual(d.attempts, 0)
+        self.assertEqual(d.attempts, 1)
         self.assertEqual(d.metadata, {
             "voice_speech_url": "https://foo.com/file.mp3"
         })
@@ -149,8 +227,6 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(str(d.contact.id), str(self.contact))
         self.assertEqual(d.delivered, True)
         self.assertEqual(d.attempts, 2)
-        self.assertEqual(d.metadata["scheduler_message_id"], "message-id-1")
-        self.assertEqual(d.metadata["scheduler_schedule_id"], "schedule-id-1")
 
     def test_delete_outbound_data(self):
         existing = self.make_outbound()
@@ -247,6 +323,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 1)
         self.assertEqual(d.metadata["ack_timestamp"],
                          "2015-10-28 16:19:37.485612")
+        self.assertEquals(False, self.check_logs(
+            "Message: u'Simple outbound message' sent to u'+27123'"))
 
     def test_event_delivery_report(self):
         existing = self.make_outbound()
@@ -270,6 +348,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 1)
         self.assertEqual(d.metadata["delivery_timestamp"],
                          "2015-10-28 16:20:37.485612")
+        self.assertEquals(False, self.check_logs(
+            "Message: u'Simple outbound message' sent to u'+27123'"))
 
     def test_event_nack_first(self):
         existing = self.make_outbound()
@@ -289,11 +369,16 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
                                     content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        d = Outbound.objects.get(pk=existing)
-        self.assertEqual(d.delivered, False)
-        self.assertEqual(d.attempts, 1)
-        self.assertEqual(d.metadata["nack_reason"],
+        c = Outbound.objects.get(pk=existing)
+        self.assertEqual(c.delivered, False)
+        self.assertEqual(c.attempts, 2)
+        self.assertEqual(c.metadata["nack_reason"],
                          "no answer")
+        self.assertEquals(True, self.check_logs(
+            "Message: u'Simple outbound message' sent to u'+27123'"))
+        self.assertEquals(
+            True,
+            self.check_logs("Metric: 'vumimessage.tries' [sum] -> 1"))
 
     def test_event_nack_last(self):
         existing = self.make_outbound()
@@ -320,3 +405,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 3)  # not moved on as last attempt passed
         self.assertEqual(d.metadata["nack_reason"],
                          "no answer")
+        self.assertEquals(False, self.check_logs(
+            "Message: u'Simple outbound message' sent to u'+27123'"))
+        self.assertEquals(
+            False,
+            self.check_logs("Metric: 'vumimessage.tries' [sum] -> 1"))
+        self.assertEquals(
+            True,
+            self.check_logs("Metric: 'vumimessage.maxretries' [sum] -> 1"))

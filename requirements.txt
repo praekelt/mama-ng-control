@@ -10,3 +10,5 @@ dj-database-url
 django-filter
 raven==5.1.1
 dj-static
+go_http==0.2.4
+django-messaging-contentstore==0.1.7
