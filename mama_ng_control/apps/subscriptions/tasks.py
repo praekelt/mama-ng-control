@@ -49,6 +49,8 @@ class Create_Message(Task):
             # should only return one in a list
             messages = contentstore.get_messages(params=params)
             if len(messages) > 0:
+                # it more than one matching message in Content store due to
+                # poor management then we just use first
                 message_id = messages[0]["id"]
                 message_details = contentstore.get_message_content(message_id)
                 # Create the message which will trigger send task
