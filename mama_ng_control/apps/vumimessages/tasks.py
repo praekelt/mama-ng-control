@@ -15,7 +15,7 @@ class Send_Metric(Task):
 
     """
     Task to fire metrics
-    TODO: Replace fire with metrics client creation when ready
+    TODO: Replace fire with metrics client creation when ready. Issue #8.
     """
     name = "mama_ng_control.apps.vumimessages.tasks.send_metric"
 
