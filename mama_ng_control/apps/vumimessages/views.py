@@ -60,9 +60,9 @@ class EventListener(APIView):
                         message.delivered = True
                         message.metadata["ack_timestamp"] = \
                             request.data["timestamp"]
+                        message.save()
                         scheduler_ack.delay(
                             message.metadata["subscription"])
-                        message.save()
                     elif event == "delivery_report":
                         message.delivered = True
                         message.metadata["delivery_timestamp"] = \
