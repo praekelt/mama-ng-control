@@ -12,9 +12,11 @@ from rest_framework.authtoken.models import Token
 
 from go_http.send import LoggingSender
 
-from .models import Inbound, Outbound, fire_send_if_new
+from .models import Inbound, Outbound, fire_msg_action_if_new
 from .tasks import Send_Message, Send_Metric
 from mama_ng_control.apps.contacts.models import Contact
+from mama_ng_control.apps.subscriptions.models import (
+    Subscription, fire_sub_action_if_new)
 
 Send_Metric.vumi_client = lambda x: LoggingSender('go_http.test')
 Send_Message.vumi_client = lambda x: LoggingSender('go_http.test')
@@ -73,30 +75,45 @@ class AuthenticatedAPITestCase(APITestCase):
                 return True
         return False
 
-    def _replace_post_save_hooks(self):
+    def _replace_post_save_hooks_outbound(self):
         has_listeners = lambda: post_save.has_listeners(Outbound)
         assert has_listeners(), (
             "Outbound model has no post_save listeners. Make sure"
             " helpers cleaned up properly in earlier tests.")
-        post_save.disconnect(fire_send_if_new,
-                             sender=Outbound)
+        post_save.disconnect(fire_msg_action_if_new, sender=Outbound)
         assert not has_listeners(), (
             "Outbound model still has post_save listeners. Make sure"
             " helpers cleaned up properly in earlier tests.")
 
-    def _restore_post_save_hooks(self):
+    def _restore_post_save_hooks_outbound(self):
         has_listeners = lambda: post_save.has_listeners(Outbound)
         assert not has_listeners(), (
             "Outbound model still has post_save listeners. Make sure"
             " helpers removed them properly in earlier tests.")
-        post_save.connect(
-            fire_send_if_new,
-            sender=Outbound)
+        post_save.connect(fire_msg_action_if_new, sender=Outbound)
+
+    def _replace_post_save_hooks_subscription(self):
+        has_listeners = lambda: post_save.has_listeners(Subscription)
+        assert has_listeners(), (
+            "Subscription model has no post_save listeners. Make sure"
+            " helpers cleaned up properly in earlier tests.")
+        post_save.disconnect(fire_sub_action_if_new, sender=Subscription)
+        assert not has_listeners(), (
+            "Subscription model still has post_save listeners. Make sure"
+            " helpers cleaned up properly in earlier tests.")
+
+    def _restore_post_save_hooks_subscription(self):
+        has_listeners = lambda: post_save.has_listeners(Subscription)
+        assert not has_listeners(), (
+            "Subscription model still has post_save listeners. Make sure"
+            " helpers removed them properly in earlier tests.")
+        post_save.connect(fire_sub_action_if_new, sender=Subscription)
 
 
 class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     def make_subscription(self):
+        self._replace_post_save_hooks_subscription()  # don't let fixtures fire
         post_data = {
             "contact": "/api/v1/contacts/%s/" % self.contact,
             "messageset_id": "1",
@@ -113,10 +130,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         response = self.client.post('/api/v1/subscriptions/',
                                     json.dumps(post_data),
                                     content_type='application/json')
+        self._restore_post_save_hooks_subscription()  # let tests fire tasks
         return response.data["id"]
 
     def make_outbound(self):
-        self._replace_post_save_hooks()  # don't let fixtures fire tasks
+        self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         subscription = self.make_subscription()
         post_data = {
             "contact": "/api/v1/contacts/%s/" % self.contact,
@@ -131,7 +149,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         response = self.client.post('/api/v1/messages/outbound/',
                                     json.dumps(post_data),
                                     content_type='application/json')
-        self._restore_post_save_hooks()  # let tests fire tasks
+        self._restore_post_save_hooks_outbound()  # let tests fire tasks
         self.check_logs(
             "Message: u'Simple outbound message' sent to u'+27123'")
         return response.data["id"]
