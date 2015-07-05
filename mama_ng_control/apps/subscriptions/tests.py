@@ -1,5 +1,6 @@
 import json
 import uuid
+import logging
 
 from django.test import TestCase
 from django.contrib.auth.models import User
@@ -15,12 +16,29 @@ from mama_ng_control.apps.contacts.models import Contact
 from mama_ng_control.apps.vumimessages.models import Outbound
 from .tasks import Create_Message
 
+# override Vumi sending handlers
+from go_http.send import LoggingSender
+from mama_ng_control.apps.vumimessages.tasks import Send_Message, Send_Metric
+Send_Metric.vumi_client = lambda x: LoggingSender('go_http.test')
+Send_Message.vumi_client = lambda x: LoggingSender('go_http.test')
+
 # from requests import HTTPError
 from requests.adapters import HTTPAdapter
 from requests_testadapter import TestSession, Resp
 from verified_fake.fake_contentstore import Request, FakeContentStoreApi
 
 from client.messaging_contentstore.contentstore import ContentStoreApiClient
+
+
+class RecordingHandler(logging.Handler):
+
+    """ Record logs. """
+    logs = None
+
+    def emit(self, record):
+        if self.logs is None:
+            self.logs = []
+        self.logs.append(record)
 
 
 class FakeContentStoreApiAdapter(HTTPAdapter):
@@ -102,6 +120,22 @@ class APITestCase(TestCase):
         self.session.mount(settings.CONTENTSTORE_API_URL, adapter)
         # self.contentstore = self.make_cs_client()
         Create_Message.contentstore_client = lambda x: self.make_cs_client()
+        self.handler = RecordingHandler()
+        logger = logging.getLogger('go_http.test')
+        logger.setLevel(logging.INFO)
+        logger.addHandler(self.handler)
+
+    def check_logs(self, msg):
+        if self.handler.logs is None:  # nothing to check
+            return False
+        if type(self.handler.logs) != list:
+            [logs] = self.handler.logs
+        else:
+            logs = self.handler.logs
+        for log in logs:
+            if log.msg == msg:
+                return True
+        return False
 
 
 class AuthenticatedAPITestCase(APITestCase):
