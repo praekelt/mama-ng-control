@@ -1,6 +1,7 @@
 import json
 import uuid
 import logging
+import responses
 
 from django.test import TestCase
 from django.contrib.auth.models import User
@@ -124,7 +125,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "schedule": "1",
             "process_status": "0",
             "metadata": {
-                "source": "RapidProVoice"
+                "source": "RapidProVoice",
+                "frequency": 10,
+                "scheduler_subscription_id": "1",
+                "scheduler_message_id": "1"
             }
         }
         response = self.client.post('/api/v1/subscriptions/',
@@ -319,8 +323,16 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Inbound.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
 
+    @responses.activate
     def test_event_ack(self):
         existing = self.make_outbound()
+
+        # Setup response from scheduler
+        responses.add(
+            responses.DELETE,
+            "http://127.0.0.1:8000/mama-ng-scheduler/rest/messages/1",
+            json.dumps({}), status=200, content_type='application/json')
+
         d = Outbound.objects.get(pk=existing)
         ack = {
             "message_type": "event",
@@ -343,6 +355,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
                          "2015-10-28 16:19:37.485612")
         self.assertEquals(False, self.check_logs(
             "Message: u'Simple outbound message' sent to u'+27123'"))
+        s = Subscription.objects.get(pk=d.metadata["subscription"])
+        self.assertEqual(s.metadata["scheduler_message_id"], "")
 
     def test_event_delivery_report(self):
         existing = self.make_outbound()
@@ -398,8 +412,16 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             True,
             self.check_logs("Metric: 'vumimessage.tries' [sum] -> 1"))
 
+    @responses.activate
     def test_event_nack_last(self):
         existing = self.make_outbound()
+
+        # Setup response from scheduler
+        responses.add(
+            responses.DELETE,
+            "http://127.0.0.1:8000/mama-ng-scheduler/rest/messages/1",
+            json.dumps({}), status=200, content_type='application/json')
+
         d = Outbound.objects.get(pk=existing)
         d.attempts = 3  # fast forward as if last attempt
         d.save()
@@ -431,3 +453,5 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEquals(
             True,
             self.check_logs("Metric: 'vumimessage.maxretries' [sum] -> 1"))
+        s = Subscription.objects.get(pk=d.metadata["subscription"])
+        self.assertEqual(s.metadata["scheduler_message_id"], "")
