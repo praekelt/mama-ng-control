@@ -63,7 +63,6 @@ class Scheduler_Ack(Task):
 
     """
     Task to tell scheduler message is deemed complete
-    TODO: Replace with HTTP POST. Issue #7
     """
     name = "mama_ng_control.apps.vumimessages.tasks.scheduler_ack"
 
