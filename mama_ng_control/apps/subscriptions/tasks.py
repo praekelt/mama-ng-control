@@ -8,8 +8,99 @@ from django.core.exceptions import ObjectDoesNotExist
 
 logger = get_task_logger(__name__)
 
+from .models import Subscription
 from mama_ng_control.apps.vumimessages.models import Outbound
 from mama_ng_control.apps.contacts.models import Contact
+from mama_ng_control.scheduler.client import SchedulerApiClient
+
+
+def contentstore_client():
+    return ContentStoreApiClient(
+        auth_token=settings.CONTENTSTORE_AUTH_TOKEN,
+        api_url=settings.CONTENTSTORE_API_URL)
+
+
+def scheduler_client():
+    return SchedulerApiClient(
+        username=settings.SCHEDULER_USERNAME,
+        password=settings.SCHEDULER_PASSWORD,
+        api_url=settings.SCHEDULER_URL)
+
+
+class Schedule_Create(Task):
+
+    """
+    Task to tell scheduler a new subscription created
+    """
+    name = "mama_ng_control.apps.subscription.tasks.schedule_create"
+
+    class FailedEventRequest(Exception):
+
+        """
+        The attempted task failed because of a non-200 HTTP return
+        code.
+        """
+
+    def contentstore_client(self):
+        return ContentStoreApiClient(
+            auth_token=settings.CONTENTSTORE_AUTH_TOKEN,
+            api_url=settings.CONTENTSTORE_API_URL)
+
+    def scheduler_client(self):
+        return SchedulerApiClient(
+            username=settings.SCHEDULER_USERNAME,
+            password=settings.SCHEDULER_PASSWORD,
+            api_url=settings.SCHEDULER_URL)
+
+    def schedule_to_cron(self, schedule):
+        return "%s %s %s %s %s" % (
+            schedule["minute"],
+            schedule["hour"],
+            schedule["day_of_week"],
+            schedule["day_of_month"],
+            schedule["month_of_year"]
+        )
+
+    def run(self, subscription_id, **kwargs):
+        """
+        Returns scheduler-id
+        """
+        l = self.get_logger(**kwargs)
+        l.info("Creating schedule for <%s>" % (subscription_id,))
+        try:
+            subscription = Subscription.objects.get(pk=subscription_id)
+            scheduler = self.scheduler_client()
+            contentstore = self.contentstore_client()
+            # get the subscription schedule/protocol from content store
+            l.info("Loading contentstore schedule <%s>" % (
+                subscription.schedule,))
+            csschedule = contentstore.get_schedule(subscription.schedule)
+            # Build the schedule POST create object
+            schedule = {
+                "subscriptionId": subscription_id,
+                "frequency": subscription.metadata["frequency"],
+                "sendCounter": subscription.next_sequence_number,
+                "cronDefinition": self.schedule_to_cron(csschedule),
+                "endpoint": "%s/subscriptions/%s/send" % (
+                    settings.CONTROL_URL, subscription_id)
+            }
+            result = scheduler.create_schedule(schedule)
+            l.info("Created schedule <%s> on scheduler for sub <%s>" % (
+                result["id"], subscription_id))
+            subscription.metadata["scheduler_schedule_id"] = result["id"]
+            subscription.save()
+            return result["id"]
+
+        except ObjectDoesNotExist:
+            logger.error('Missing Subscription', exc_info=True)
+
+        except SoftTimeLimitExceeded:
+            logger.error(
+                'Soft time limit exceed processing scheduler ack \
+                 via Celery.',
+                exc_info=True)
+
+schedule_create = Schedule_Create()
 
 
 class Create_Message(Task):

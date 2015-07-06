@@ -189,3 +189,17 @@ MAMA_NG_CONTROL_MAX_RETRIES = \
     os.environ.get('MAMA_NG_CONTROL_MAX_RETRIES', 3)
 MAMA_NG_CONTROL_MAX_FAILURES = \
     os.environ.get('MAMA_NG_CONTROL_MAX_FAILURES', 5)
+
+SCHEDULER_URL = \
+    os.environ.get('MAMA_NG_CONTROL_SCHEDULER_URL',
+                   'http://example.com/mama-ng-scheduler/rest/')
+SCHEDULER_USERNAME = \
+    os.environ.get('MAMA_NG_CONTROL_SCHEDULER_USERNAME',
+                   'sc-username')
+SCHEDULER_PASSWORD = \
+    os.environ.get('MAMA_NG_CONTROL_SCHEDULER_PASSWORD',
+                   'sc-password')
+
+CONTROL_URL = \
+    os.environ.get('MAMA_NG_CONTROL_URL',
+                   'http://examplecontrol.com/api/v1')

@@ -56,6 +56,6 @@ from .tasks import send_message
 
 
 @receiver(post_save, sender=Outbound)
-def fire_send_if_new(sender, instance, created, **kwargs):
+def fire_msg_action_if_new(sender, instance, created, **kwargs):
     if created:
         send_message.delay(str(instance.id))
