@@ -4,6 +4,7 @@ from django.conf.urls.static import static
 from django.conf import settings
 
 urlpatterns = [
+    url(r'^grappelli/', include('grappelli.urls')),  # grappelli URLS
     url(r'^admin/', include(admin.site.urls)),
     url(r'^', include('mama_ng_control.apps.web.urls')),
     url(r'^api/v1/', include('mama_ng_control.apps.subscriptions.urls')),
