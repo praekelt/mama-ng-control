@@ -355,6 +355,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
                          "2015-10-28 16:19:37.485612")
         self.assertEquals(False, self.check_logs(
             "Message: u'Simple outbound message' sent to u'+27123'"))
+        s = Subscription.objects.get(pk=d.metadata["subscription"])
+        self.assertEqual(s.metadata["scheduler_message_id"], "")
 
     def test_event_delivery_report(self):
         existing = self.make_outbound()
@@ -451,3 +453,5 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEquals(
             True,
             self.check_logs("Metric: 'vumimessage.maxretries' [sum] -> 1"))
+        s = Subscription.objects.get(pk=d.metadata["subscription"])
+        self.assertEqual(s.metadata["scheduler_message_id"], "")
