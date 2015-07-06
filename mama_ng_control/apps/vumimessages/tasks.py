@@ -6,6 +6,9 @@ from go_http.send import HttpApiSender
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 
+from mama_ng_control.apps.subscriptions.models import Subscription
+from mama_ng_control.scheduler.client import SchedulerApiClient
+
 logger = get_task_logger(__name__)
 
 from .models import Outbound
@@ -71,25 +74,42 @@ class Scheduler_Ack(Task):
         code.
         """
 
-    def run(self, subscription, **kwargs):
+    def scheduler_client(self):
+        return SchedulerApiClient(
+            username=settings.SCHEDULER_USERNAME,
+            password=settings.SCHEDULER_PASSWORD,
+            api_url=settings.SCHEDULER_URL)
+
+    def run(self, subscription_id, **kwargs):
         """
-        Returns count from api
+        Returns True if successful
         """
         l = self.get_logger(**kwargs)
-        # load from Subscription
-        # subscription.metadata["scheduler_subscription_id"]
-        # subscription.metadata["scheduler_message_id"]
-        l.info("Marking <%s> as ack on scheduler" % (subscription,))
+        l.info("Marking <%s> as ack on scheduler" % (subscription_id,))
         try:
-            result = True
-            l.info("Marked <%s> as ack on scheduler" % (subscription,))
-            return result
+            subscription = Subscription.objects.get(pk=subscription_id)
+            scheduler = self.scheduler_client()
+            # Call the scheduler and delete the pending message
+            scheduler.delete_message(
+                subscription.metadata["scheduler_message_id"])
+            l.info("Deleted message <%s> from scheduler id <%s>" % (
+                subscription.metadata["scheduler_message_id"],
+                subscription.metadata["scheduler_subscription_id"]))
+            # remove the message_id in acknowledgement
+            subscription.metadata["scheduler_message_id"] = ""
+            subscription.save()
+            return True
+
+        except ObjectDoesNotExist:
+            logger.error('Missing Subscription', exc_info=True)
+            return False
 
         except SoftTimeLimitExceeded:
             logger.error(
                 'Soft time limit exceed processing scheduler ack \
                  via Celery.',
                 exc_info=True)
+            return False
 
 scheduler_ack = Scheduler_Ack()
 

@@ -1,6 +1,7 @@
 import json
 import uuid
 import logging
+import responses
 
 from django.test import TestCase
 from django.contrib.auth.models import User
@@ -124,7 +125,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "schedule": "1",
             "process_status": "0",
             "metadata": {
-                "source": "RapidProVoice"
+                "source": "RapidProVoice",
+                "frequency": 10,
+                "scheduler_subscription_id": "1",
+                "scheduler_message_id": "1"
             }
         }
         response = self.client.post('/api/v1/subscriptions/',
@@ -319,8 +323,16 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Inbound.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
 
+    @responses.activate
     def test_event_ack(self):
         existing = self.make_outbound()
+
+        # Setup response from scheduler
+        responses.add(
+            responses.DELETE,
+            "http://127.0.0.1:8000/mama-ng-scheduler/rest/messages/1",
+            json.dumps({}), status=200, content_type='application/json')
+
         d = Outbound.objects.get(pk=existing)
         ack = {
             "message_type": "event",
@@ -398,8 +410,16 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             True,
             self.check_logs("Metric: 'vumimessage.tries' [sum] -> 1"))
 
+    @responses.activate
     def test_event_nack_last(self):
         existing = self.make_outbound()
+
+        # Setup response from scheduler
+        responses.add(
+            responses.DELETE,
+            "http://127.0.0.1:8000/mama-ng-scheduler/rest/messages/1",
+            json.dumps({}), status=200, content_type='application/json')
+
         d = Outbound.objects.get(pk=existing)
         d.attempts = 3  # fast forward as if last attempt
         d.save()
