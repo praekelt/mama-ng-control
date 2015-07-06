@@ -96,7 +96,7 @@ class Schedule_Create(Task):
 
         except SoftTimeLimitExceeded:
             logger.error(
-                'Soft time limit exceed processing scheduler ack \
+                'Soft time limit exceed processing schedule create \
                  via Celery.',
                 exc_info=True)
 
