@@ -1,0 +1,8 @@
+buildscript: scripts/build.sh
+postinstall: scripts/postinstall.sh
+dependencies:
+ - lxc-docker
+
+# Looks like sideloader needs at least one pip thing. o_O
+pip:
+ - pytz
