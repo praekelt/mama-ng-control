@@ -1,5 +1,5 @@
 buildscript: scripts/build.sh
-postinstall: scripts/postinstall.sh
+postinstall: scripts/post_install.sh
 dependencies:
  - lxc-docker
 
