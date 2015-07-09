@@ -3,4 +3,6 @@
 # # Exit on errors from here.
 set -e
 
-# docker-compose will handle building the docker packages
+composefile="${INSTALLDIR}/mama-ng-deploy/docker-compose.yml"
+
+docker-compose -f $composefile build
