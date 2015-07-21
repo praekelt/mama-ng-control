@@ -56,9 +56,9 @@ class Schedule_Create(Task):
         return "%s %s %s %s %s" % (
             schedule["minute"],
             schedule["hour"],
-            schedule["day_of_week"],
             schedule["day_of_month"],
-            schedule["month_of_year"]
+            schedule["month_of_year"],
+            schedule["day_of_week"]
         )
 
     def run(self, subscription_id, **kwargs):
