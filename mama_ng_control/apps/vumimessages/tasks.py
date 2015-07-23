@@ -2,6 +2,7 @@ from celery.task import Task
 from celery.utils.log import get_task_logger
 from celery.exceptions import SoftTimeLimitExceeded
 from go_http.send import HttpApiSender
+from requests.exceptions import HTTPError
 
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
@@ -161,14 +162,22 @@ class Send_Message(Task):
                     scheduler_ack.delay(
                         message.metadata["subscription"])
                 else:
-                    vumiresponse = sender.send_text(
-                        to_addr[0], content)
-                    l.info("Sent message to <%s>" % to_addr)
-                    message.attempts += 1
-                    message.vumi_message_id = vumiresponse["message_id"]
-                    message.save()
-                    send_metric.delay(metric="vumimessage.tries", value=1,
-                                      agg="sum")
+                    try:
+                        vumiresponse = sender.send_text(
+                            to_addr[0], content)
+                        l.info("Sent message to <%s>" % to_addr)
+                        message.attempts += 1
+                        message.vumi_message_id = vumiresponse["message_id"]
+                        message.save()
+                        send_metric.delay(metric="vumimessage.tries", value=1,
+                                          agg="sum")
+                    except HTTPError as e:
+                        # retry message sending if in 500 range (3 default
+                        # retries)
+                        if 500 < e.response.status_code < 599:
+                            raise self.retry(exc=e)
+                        else:
+                            raise e
                     return vumiresponse
             else:
                 l.info("Message <%s> at max retries." % str(message_id))
