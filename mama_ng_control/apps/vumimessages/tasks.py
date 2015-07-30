@@ -149,12 +149,6 @@ class Send_Message(Task):
                 # send or resend
                 sender = self.vumi_client()
                 content = message.content
-                # TODO - Issue #9 - move voice to
-                # helper_metadata = {"voice": {"speech_url": None }}
-                # helper_metadata["voice"]["speech_url"] =
-                # speech = message.metadata["voice_speech_url"]
-                if "speech_url" in message.metadata:
-                    content = message.metadata["voice_speech_url"]
                 to_addr = message.contact.address("msisdn")
                 if len(to_addr) == 0:
                     l.info("Failed to send message <%s>. No address." % (
@@ -163,9 +157,20 @@ class Send_Message(Task):
                         message.metadata["subscription"])
                 else:
                     try:
-                        vumiresponse = sender.send_text(
-                            to_addr[0], content)
-                        l.info("Sent message to <%s>" % to_addr)
+                        if "voice_speech_url" in message.metadata:
+                            # Voice message
+                            speech_url = message.metadata["voice_speech_url"]
+                            vumiresponse = sender.send_voice(
+                                to_addr[0], content,
+                                speech_url=speech_url,
+                                session_event="new")
+                            l.info("Sent voice message to <%s>" % to_addr)
+                        else:
+                            # Plain content
+                            vumiresponse = sender.send_text(
+                                to_addr[0], content,
+                                session_event="new")
+                            l.info("Sent text message to <%s>" % to_addr)
                         message.attempts += 1
                         message.vumi_message_id = vumiresponse["message_id"]
                         message.save()
