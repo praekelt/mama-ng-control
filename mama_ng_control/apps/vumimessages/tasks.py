@@ -46,8 +46,10 @@ class Send_Metric(Task):
 
         l.info("Firing metric: %r [%s] -> %g" % (metric, agg, float(value)))
         try:
-            sender = self.vumi_client()
-            result = sender.fire_metric(metric, value, agg=agg)
+            # TODO: Real metric firing
+            #sender = self.vumi_client()
+            #result = sender.fire_metric(metric, value, agg=agg)
+            result = "Fake metric fired"
             l.info("Result of firing metric: %s" % (result["success"]))
             return result
 
