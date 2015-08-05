@@ -47,9 +47,9 @@ class Send_Metric(Task):
         l.info("Firing metric: %r [%s] -> %g" % (metric, agg, float(value)))
         try:
             # TODO: Real metric firing
-            #sender = self.vumi_client()
-            #result = sender.fire_metric(metric, value, agg=agg)
-            result = "Fake metric fired"
+            # sender = self.vumi_client()
+            # result = sender.fire_metric(metric, value, agg=agg)
+            result = {"success": "Fake metric fired"}
             l.info("Result of firing metric: %s" % (result["success"]))
             return result
 
@@ -148,6 +148,7 @@ class Send_Message(Task):
         try:
             message = Outbound.objects.get(pk=message_id)
             if message.attempts < settings.MAMA_NG_CONTROL_MAX_RETRIES:
+                print("Attempts: %s" % message.attempts)
                 # send or resend
                 sender = self.vumi_client()
                 content = message.content

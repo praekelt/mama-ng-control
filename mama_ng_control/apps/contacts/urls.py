@@ -8,5 +8,8 @@ router.register(r'contacts', views.ContactViewSet)
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browseable API.
 urlpatterns = [
+    url('^contacts/search/$',
+        views.ContactSearchList.as_view()),
     url(r'^', include(router.urls)),
+
 ]

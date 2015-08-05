@@ -165,3 +165,64 @@ class TestContactsAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.details["name"], "Test Name")
         self.assertEqual(d.version, 1)
         self.assertEqual(d.address(), [])
+
+    def test_create_contact_data_v1_format_address_get_single(self):
+        """
+        """
+        post_contact = {
+            "details": {
+                "name": "Test Name",
+                "default_addr_type": "msisdn",
+                "addresses": "msisdn:+27123"
+            }
+        }
+        response = self.client.post('/api/v1/contacts/',
+                                    json.dumps(post_contact),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        get = self.client.get('/api/v1/contacts/%s/' % response.data["id"],
+                              content_type='application/json')
+        self.assertEqual(get.status_code, status.HTTP_200_OK)
+        self.assertEqual(get.data["version"], 1)
+        self.assertEqual(get.data["details"]["name"], "Test Name")
+        self.assertEqual(get.data["details"]["addresses"], "msisdn:+27123")
+
+    def test_create_contact_data_v1_format_search(self):
+        """
+        v1 expects at minimum:
+        addresses: addr_type:addr_value pairs
+            (e.g. "msisdn:+27001 msisdn:+27002 email:foo@bar.com")
+        default_addr_type: which addr_type to default to if not given
+        which is used with address function for smart lookups
+        """
+        post_contact1 = {
+            "details": {
+                "name": "Test Name",
+                "default_addr_type": "msisdn",
+                "addresses": "msisdn:+27123"
+            }
+        }
+        response1 = self.client.post('/api/v1/contacts/',
+                                     json.dumps(post_contact1),
+                                     content_type='application/json')
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+        post_contact2 = {
+            "details": {
+                "name": "Test Second",
+                "default_addr_type": "msisdn",
+                "addresses": "msisdn:+27999"
+            }
+        }
+        response2 = self.client.post('/api/v1/contacts/',
+                                     json.dumps(post_contact2),
+                                     content_type='application/json')
+        self.assertEqual(response2.status_code, status.HTTP_201_CREATED)
+
+        get = self.client.get('/api/v1/contacts/search/',
+                              {"msisdn": "+27123"},
+                              content_type='application/json')
+        self.assertEqual(get.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(get.data["results"]), 1)
+        self.assertEqual(get.data["results"][0]["details"]["name"],
+                         "Test Name")
