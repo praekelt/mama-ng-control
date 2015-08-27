@@ -3,7 +3,7 @@
 # # Exit on errors from here.
 set -e
 
-# # Breaks until all in place
-# composefile="${INSTALLDIR}/mama-ng-deploy/docker-compose.yml"
+composefile="${INSTALLDIR}/mama-ng-deploy/docker-compose.yml"
 
-# docker-compose -f $composefile build
+docker-compose -f "$composefile" build mamangcontrol
+docker-compose -f "$composefile" up -d
