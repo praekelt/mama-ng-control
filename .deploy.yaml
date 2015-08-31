@@ -2,7 +2,7 @@ buildscript: scripts/build.sh
 postinstall: scripts/post_install.sh
 dependencies:
  - lxc-docker
-
+ - postgresql-client
 # From pypi
 pip:
  - docker-compose
