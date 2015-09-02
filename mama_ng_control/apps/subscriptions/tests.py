@@ -199,8 +199,7 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
             "schedule": "1",
             "process_status": "0",
             "metadata": {
-                "source": "RapidProVoice",
-                "frequency": 10
+                "source": "RapidProVoice"
             }
         }
         response = self.client.post('/api/v1/subscriptions/',
@@ -221,6 +220,7 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_create_subscription_data(self):
+
         schedule = {
             "class": "mama.ng.scheduler.Schedule",
             "id": "1",
@@ -234,10 +234,11 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
             "subscriptionId": "1234"
         }
 
-        responses.add(responses.GET,
-                      "http://127.0.0.1:8000/mama-ng-scheduler/rest/schedules",
-                      json.dumps(schedule),
-                      status=200, content_type='application/json')
+        responses.add(
+            responses.GET,
+            "http://127.0.0.1:8000/mama-ng-scheduler/rest/schedules",
+            json.dumps(schedule),
+            status=200, content_type='application/json')
 
         post_subscription = {
             "contact": "/api/v1/contacts/%s/" % self.contact,
@@ -249,8 +250,7 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
             "schedule": "1",
             "process_status": "0",
             "metadata": {
-                "source": "RapidProVoice",
-                "frequency": 10
+                "source": "RapidProVoice"
             }
         }
         response = self.client.post('/api/v1/subscriptions/',
@@ -367,10 +367,29 @@ class TestSubscriptionsAPI(AuthenticatedAPITestCase):
             "month_of_year": "*"
         }
 
-        responses.add(responses.GET,
-                      "http://127.0.0.1:8000/contentstore/schedule/1",
-                      json.dumps(schedule_get),
-                      status=200, content_type='application/json')
+        messageset = {
+            "id": 2,
+            "short_name": "pregnancy",
+            "notes": "Base pregancy set",
+            "next_set": None,
+            "default_schedule": 1,
+            "messages": [
+                {"id": 1},
+                {"id": 2}
+            ]
+        }
+
+        responses.add(
+            responses.GET,
+            "http://127.0.0.1:8000/contentstore/schedule/1",
+            json.dumps(schedule_get),
+            status=200, content_type='application/json')
+
+        responses.add(
+            responses.GET,
+            "http://127.0.0.1:8000/contentstore/messageset/2/messages",
+            json.dumps(messageset),
+            status=200, content_type='application/json')
 
         # to the scheduler
         schedule_post = {
