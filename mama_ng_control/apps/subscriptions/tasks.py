@@ -75,6 +75,11 @@ class Schedule_Create(Task):
             l.info("Loading contentstore schedule <%s>" % (
                 subscription.schedule,))
             csschedule = contentstore.get_schedule(subscription.schedule)
+            # get the messageset length for frequency
+            messageset = contentstore.get_messageset_messages(
+                subscription.messageset_id)
+            subscription.metadata["frequency"] = \
+                str(len(messageset["messages"]))
             # Build the schedule POST create object
             schedule = {
                 "subscriptionId": subscription_id,
