@@ -146,7 +146,7 @@ class Send_Message(Task):
 
         l.info("Loading Outbound Message")
         try:
-            message = Outbound.objects.get(pk=message_id)
+            message = Outbound.objects.get(id=message_id)
             if message.attempts < settings.MAMA_NG_CONTROL_MAX_RETRIES:
                 print("Attempts: %s" % message.attempts)
                 # send or resend
