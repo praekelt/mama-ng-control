@@ -51,7 +51,10 @@ class SchedulerApiClient(object):
             'delete': self.session.delete,
         }.get(method, None)(url, params=params, data=json.dumps(data))
         result.raise_for_status()
-        return result.json()
+        if method is "delete":  # DELETE returns blank body
+            return {"success": True}
+        else:
+            return result.json()
 
     def get_schedules(self, params=None):
         return self.call('schedules', 'get', params=params)
@@ -71,6 +74,7 @@ class SchedulerApiClient(object):
                          data=schedule)
 
     def delete_schedule(self, schedule_id):
+        # Schedule messages must all be deleted first for FK reasons
         return self.call('schedules', 'delete', obj=schedule_id)
 
     def get_messages(self, params=None):
