@@ -1,0 +1,36 @@
+from setuptools import setup, find_packages
+
+setup(
+    name="mama-ng-control",
+    version="0.1",
+    url='http://github.com/praekelt/mama-ng-control',
+    license='BSD',
+    author='Praekelt Foundation',
+    author_email='dev@praekeltfoundation.org',
+    packages=find_packages(),
+    install_requires=[
+        'celery',
+        'dj-database-url',
+        'dj-static',
+        'django-celery',
+        'django-filter',
+        'django-grappelli==2.6.5',
+        'django-hstore==1.3.5',
+        'django-messaging-contentstore==0.1.7',
+        'Django==1.8.1',
+        'djangorestframework==3.1.2',
+        'go_http==0.2.6',
+        'gunicorn==19.3.0',
+        'psycopg2==2.6',
+        'raven==5.1.1',
+        'redis==2.10.3',
+    ],
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Framework :: Django',
+        'License :: OSI Approved :: BSD License',
+        'Programming Language :: Python',
+        'Programming Language :: Python :: 2.7',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+    ],
+)
