@@ -1,0 +1,10 @@
+# Source distribution files.
+include README.md
+include setup.py
+
+# Some non-Python stuff we need.
+recursive-include mama_ng_control/apps/web/templates *
+
+# Prune stray bytecode files.
+global-exclude *.pyc
+global-exclude __pycache__
