@@ -1,8 +1,0 @@
-buildscript: scripts/build.sh
-postinstall: scripts/post_install.sh
-dependencies:
- - docker-engine
- - postgresql-client
-# From pypi
-pip:
- - docker-compose
